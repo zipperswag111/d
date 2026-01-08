@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>TERMINAL // FULL_SPECTRUM_v140_INFINITE</title>
+    <title>TERMINAL // FULL_SPECTRUM_v200_OMNI</title>
     <style>
         :root { 
             --core: #00ff41; 
@@ -27,7 +27,7 @@
             display: flex; gap: 15px; align-items: center; z-index: 100;
         }
         .logo { font-weight: 900; color: #fff; letter-spacing: 2px; font-size: 18px; }
-        .logo span { color: var(--danger); }
+        .logo span { color: var(--accent); }
         
         .search-wrapper { flex: 1; position: relative; display: flex; }
         .cmd-input { 
@@ -54,7 +54,7 @@
         .viewport { flex: 1; display: flex; overflow: hidden; position: relative; }
         
         .telemetry { 
-            width: 260px; background: #060606; border-right: 1px solid #222; display: flex; flex-direction: column; 
+            width: 280px; background: #060606; border-right: 1px solid #222; display: flex; flex-direction: column; 
             padding: 20px; gap: 20px; font-size: 10px; overflow-y: auto;
         }
         .module { border: 1px solid #1a1a1a; padding: 10px; background: #080808; }
@@ -76,7 +76,7 @@
 
         .card-content { flex: 1; overflow: hidden; }
         .res-meta { display: flex; justify-content: space-between; font-size: 10px; color: #555; margin-bottom: 6px; }
-        .res-badge { color: #000; padding: 1px 4px; font-weight: bold; border-radius: 2px; text-transform: uppercase; }
+        .res-badge { color: #000; padding: 1px 4px; font-weight: bold; border-radius: 2px; text-transform: uppercase; font-size: 9px; }
         .res-title { display: block; color: #ddd; font-size: 14px; text-decoration: none; margin-bottom: 6px; font-weight: bold; }
         .res-title:hover { color: var(--core); text-decoration: underline; }
         .res-snip { font-size: 12px; color: #888; line-height: 1.4; max-height: 60px; overflow: hidden; }
@@ -84,6 +84,13 @@
 
         mark { background: rgba(0, 255, 65, 0.15); color: var(--core); padding: 0 2px; }
         .loader { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; display: none; }
+        
+        /* Grid for sources in telemetry */
+        .source-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .source-item { display: flex; justify-content: space-between; }
+        .src-ok { color: var(--core); }
+        .src-wait { color: #555; }
+        .src-err { color: var(--danger); }
     </style>
 </head>
 <body>
@@ -91,12 +98,12 @@
 <div class="scanlines"></div>
 
 <div class="deck">
-    <div class="logo">FULL<span>_SPECTRUM_v140</span></div>
+    <div class="logo">FULL<span>_SPECTRUM_v200</span></div>
     <div class="search-wrapper">
         <input type="text" id="query" class="cmd-input" placeholder="ENTER KEYWORDS..." onkeypress="if(event.key==='Enter') execute()">
     </div>
-    <button class="btn-exe" id="btn-run" onclick="execute()">INFINITE_SEARCH</button>
-    <button class="btn-exe btn-stop" onclick="stopSearch()">[STOP]</button>
+    <button class="btn-exe" id="btn-run" onclick="execute()">OMNI_SEARCH</button>
+    <button class="btn-exe btn-stop" onclick="stopSearch()">[HALT]</button>
 </div>
 
 <div class="settings-bar">
@@ -105,8 +112,8 @@
         <span>STRICT_MODE</span>
     </div>
     <div class="toggle-btn" onclick="toggleProxy()">
-        <div id="box-proxy" class="check-box"></div>
-        <span>BACKUP_PROXY</span>
+        <div id="box-proxy" class="check-box active"></div>
+        <span>CORS_BYPASS (REQUIRED)</span>
     </div>
     <div style="flex:1;"></div>
     <div id="status-line">SYSTEM_IDLE</div>
@@ -122,11 +129,9 @@
         </div>
         
         <div class="module">
-            <div class="mod-head"><span>VECTOR_PING (PAGES)</span></div>
-            <div class="stat-row"><span>REDDIT:</span> <span id="stat-red" class="stat-val">0/5</span></div>
-            <div class="stat-row"><span>HACKER_NEWS:</span> <span id="stat-hn" class="stat-val">0/5</span></div>
-            <div class="stat-row"><span>VIDEO (INV):</span> <span id="stat-vid" class="stat-val">0/5</span></div>
-            <div class="stat-row"><span>TWITTER:</span> <span id="stat-twt" class="stat-val">SCANNING</span></div>
+            <div class="mod-head"><span>ACTIVE_VECTORS (20)</span></div>
+            <div class="source-grid" id="vector-grid">
+                </div>
         </div>
 
         <div class="module" style="margin-top:auto">
@@ -138,16 +143,16 @@
     <div class="feed" id="mainFeed"></div>
     
     <div class="loader" id="loader">
-        <div style="color:var(--core); font-size:12px; letter-spacing:2px; margin-bottom:10px;">/// CHAINING_PAGINATION_TOKENS ///</div>
+        <div style="color:var(--accent); font-size:12px; letter-spacing:2px; margin-bottom:10px;">/// AGGREGATING_GLOBAL_NETWORKS ///</div>
+        <div style="color:#555; font-size:10px;">Establishing Proxies... Parsing XML/JSON...</div>
     </div>
 </div>
 
 <script>
-    let PROXY_BASE = "https://corsproxy.io/?url=";
-    let BACKUP_PROXY = "https://api.allorigins.win/raw?url=";
-    let useBackup = false;
-    let abortController = null; // Kill switch
-    let maxPages = 5; // How deep to dig
+    // Using backup proxy by default as it handles XML/RSS better
+    let PROXY_BASE = "https://api.allorigins.win/raw?url="; 
+    let useProxy = true;
+    let abortController = null;
 
     let state = {
         query: "",
@@ -156,6 +161,41 @@
         processedResults: []
     };
 
+    // --- SOURCE CONFIGURATION (20 SOURCES) ---
+    const SOURCES = {
+        // APIs (JSON)
+        REDDIT:     { type: 'api', color: '#ff4500' },
+        HACKERNEWS: { type: 'api', color: '#ff6600' },
+        WIKIPEDIA:  { type: 'api', color: '#ffffff' },
+        STACKOVFL:  { type: 'api', color: '#f48024' },
+        GITHUB:     { type: 'api', color: '#6e5494' },
+        MASTODON:   { type: 'api', color: '#6364ff' },
+        ARXIV:      { type: 'api', color: '#b31b1b' },
+        
+        // RSS Feeds (XML) - Parsed via Generic Handler
+        BBC_NEWS:   { type: 'rss', url: 'http://feeds.bbci.co.uk/news/rss.xml', color: '#bb1919' },
+        NY_TIMES:   { type: 'rss', url: 'https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml', color: '#000000' },
+        THE_VERGE:  { type: 'rss', url: 'https://www.theverge.com/rss/index.xml', color: '#e10098' },
+        WIRED:      { type: 'rss', url: 'https://www.wired.com/feed/rss', color: '#000000' },
+        TECHCRUNCH: { type: 'rss', url: 'https://techcrunch.com/feed/', color: '#028f43' },
+        ARS_TECHNICA:{ type: 'rss', url: 'http://feeds.arstechnica.com/arstechnica/index', color: '#ff4e00' },
+        ENGADGET:   { type: 'rss', url: 'https://www.engadget.com/rss.xml', color: '#9999ff' },
+        AL_JAZEERA: { type: 'rss', url: 'https://www.aljazeera.com/xml/rss/all.xml', color: '#f7931e' },
+        NPR_NEWS:   { type: 'rss', url: 'https://feeds.npr.org/1001/rss.xml', color: '#4579e2' },
+        CNBC:       { type: 'rss', url: 'https://search.cnbc.com/rs/search/combinedcms/view.xml?partnerId=wrss01&id=100003114', color: '#005594' },
+        NASA:       { type: 'rss', url: 'https://www.nasa.gov/rss/dyn/breaking_news.rss', color: '#0b3d91' },
+        GOOGLE_NEWS:{ type: 'rss', url: 'GENERATE', color: '#4285f4' }, // Special case
+        DUCKDUCKGO: { type: 'scrape', color: '#de5833' } // Special case
+    };
+
+    function initGrid() {
+        const grid = document.getElementById('vector-grid');
+        grid.innerHTML = '';
+        Object.keys(SOURCES).forEach(k => {
+            grid.innerHTML += `<div class="source-item"><span>${k.substring(0,9)}</span> <span id="stat-${k}" class="src-wait">...</span></div>`;
+        });
+    }
+
     function toggleStrict() {
         state.strict = !state.strict;
         document.getElementById('box-strict').classList.toggle('active');
@@ -163,13 +203,8 @@
     }
 
     function toggleProxy() {
-        useBackup = !useBackup;
+        useProxy = !useProxy;
         document.getElementById('box-proxy').classList.toggle('active');
-        log(useBackup ? "PROXY: BACKUP" : "PROXY: PRIMARY");
-    }
-
-    function getProxyUrl(url) {
-        return useBackup ? (BACKUP_PROXY + encodeURIComponent(url)) : (PROXY_BASE + encodeURIComponent(url));
     }
 
     function log(msg) {
@@ -179,10 +214,17 @@
         el.prepend(d);
     }
 
+    function updateStatus(key, status) {
+        const el = document.getElementById(`stat-${key}`);
+        if(!el) return;
+        el.innerText = status;
+        el.className = status === 'OK' ? 'src-ok' : (status === 'ERR' ? 'src-err' : 'src-wait');
+    }
+
     function stopSearch() {
         if(abortController) {
             abortController.abort();
-            log("USER_INTERRUPT: STOPPING...");
+            log("INTERRUPT SIGNAL RECEIVED");
             document.getElementById('loader').style.display = "none";
             document.getElementById('status-line').innerText = "ABORTED";
         }
@@ -194,139 +236,205 @@
         
         state.query = q;
         state.rawResults = [];
-        abortController = new AbortController(); // New signal
+        abortController = new AbortController();
         
         document.getElementById('mainFeed').innerHTML = "";
         document.getElementById('loader').style.display = "block";
-        resetStats();
+        document.getElementById('count-total').innerText = "0";
+        initGrid();
         
-        log(`INIT INFINITE SCROLL: "${q}"`);
+        log(`INIT OMNI SEARCH: "${q}"`);
+        document.getElementById('status-line').innerText = "VECTORS_ACTIVE";
 
-        // We run these in parallel, but they internally loop pages
-        await Promise.allSettled([
-            scrapeReddit(q),
-            scrapeHackerNews(q),
-            scrapeInvidious(q),
-            scrapeDDG(q),
-            scrapeGoogleNews(q)
-        ]);
+        const tasks = [];
+
+        // 1. Queue API Tasks
+        tasks.push(apiReddit(q));
+        tasks.push(apiHackerNews(q));
+        tasks.push(apiWikipedia(q));
+        tasks.push(apiStackOverflow(q));
+        tasks.push(apiGithub(q));
+        tasks.push(apiMastodon(q));
+        tasks.push(apiArxiv(q));
+        
+        // 2. Queue Scrape/RSS Tasks
+        tasks.push(scrapeDDG(q));
+        
+        // 3. Queue Generic RSS
+        Object.keys(SOURCES).forEach(key => {
+            if(SOURCES[key].type === 'rss') {
+                if(key === 'GOOGLE_NEWS') {
+                    const gUrl = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
+                    tasks.push(fetchRSS(key, gUrl));
+                } else {
+                    tasks.push(fetchRSS(key, SOURCES[key].url));
+                }
+            }
+        });
+
+        await Promise.allSettled(tasks);
 
         processResults();
         
         document.getElementById('loader').style.display = "none";
-        document.getElementById('status-line').innerText = "DONE";
-        log("RENDER COMPLETE");
+        document.getElementById('status-line').innerText = "AGGREGATION_COMPLETE";
+        log(`CYCLE COMPLETE. YIELD: ${state.rawResults.length}`);
     }
 
-    // --- RECURSIVE ENGINES ---
+    // --- GENERIC RSS PARSER ---
+    async function fetchRSS(key, url) {
+        try {
+            const target = useProxy ? (PROXY_BASE + encodeURIComponent(url)) : url;
+            const res = await fetch(target, { signal: abortController.signal });
+            const text = await res.text();
+            const parser = new DOMParser();
+            const xml = parser.parseFromString(text, "text/xml");
+            
+            const items = xml.querySelectorAll("item");
+            if(items.length === 0) throw new Error("No items");
 
-    // 1. REDDIT (Recursive 'after' cursor)
-    async function scrapeReddit(q) {
-        let after = "";
-        for(let i=0; i<maxPages; i++) {
-            if(abortController.signal.aborted) break;
-            try {
-                updateVec('red', `${i+1}/${maxPages}`);
-                const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&sort=relevance&limit=100&raw_json=1&after=${after}`;
-                const res = await fetch(getProxyUrl(url), { signal: abortController.signal });
-                const data = await res.json();
-                
-                if(!data.data.children.length) break;
+            items.forEach(item => {
+                const title = item.querySelector("title")?.textContent || "N/A";
+                const desc = item.querySelector("description")?.textContent || "";
+                const link = item.querySelector("link")?.textContent || "#";
+                const dateStr = item.querySelector("pubDate")?.textContent;
+                const date = dateStr ? new Date(dateStr).getTime() : Date.now();
 
-                data.data.children.forEach(c => pushRaw({
-                    src: 'REDDIT', title: c.data.title, text: c.data.selftext || "", link: `https://reddit.com${c.data.permalink}`, timestamp: c.data.created_utc * 1000, color: '#ff4500'
-                }));
-                
-                after = data.data.after;
-                if(!after) break; // No more pages
-                
-                await new Promise(r => setTimeout(r, 1000)); // Throttle 1s
-            } catch(e) { break; }
+                pushRaw({
+                    src: key,
+                    title: title,
+                    text: cleanHTML(desc),
+                    link: link,
+                    timestamp: isNaN(date) ? Date.now() : date,
+                    color: SOURCES[key].color
+                });
+            });
+            updateStatus(key, 'OK');
+        } catch(e) {
+            updateStatus(key, 'ERR');
         }
-        updateVec('red', 'DONE');
     }
 
-    // 2. HACKER NEWS (Numeric Pagination)
-    async function scrapeHackerNews(q) {
-        for(let i=0; i<maxPages; i++) {
-            if(abortController.signal.aborted) break;
-            try {
-                updateVec('hn', `${i+1}/${maxPages}`);
-                const url = `https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=50&page=${i}`;
-                const res = await fetch(url, { signal: abortController.signal }); // HN has CORS enabled usually
-                const data = await res.json();
-                
-                if(!data.hits.length) break;
+    // --- API HANDLERS ---
 
-                data.hits.forEach(h => pushRaw({
-                    src: 'HACKER_NEWS', title: h.title, text: "", link: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`, timestamp: h.created_at_i * 1000, color: '#ff6600'
-                }));
-                await new Promise(r => setTimeout(r, 500));
-            } catch(e) { break; }
-        }
-        updateVec('hn', 'DONE');
+    async function apiReddit(q) {
+        try {
+            const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(q)}&sort=relevance&limit=25&raw_json=1`;
+            // Reddit usually requires no proxy if raw_json is used, but we use proxy to be safe
+            const res = await fetch(useProxy ? PROXY_BASE + encodeURIComponent(url) : url, { signal: abortController.signal });
+            const data = await res.json();
+            data.data.children.forEach(c => pushRaw({
+                src: 'REDDIT', title: c.data.title, text: c.data.selftext, link: `https://reddit.com${c.data.permalink}`, timestamp: c.data.created_utc * 1000, color: SOURCES.REDDIT.color
+            }));
+            updateStatus('REDDIT', 'OK');
+        } catch(e) { updateStatus('REDDIT', 'ERR'); }
     }
 
-    // 3. INVIDIOUS (Numeric Pagination)
-    async function scrapeInvidious(q) {
-        for(let i=1; i<=maxPages; i++) {
-            if(abortController.signal.aborted) break;
-            try {
-                updateVec('vid', `${i}/${maxPages}`);
-                // Note: using different instance for stability if needed. inv.tux.pizza is decent.
-                const res = await fetch(`https://inv.tux.pizza/api/v1/search?q=${encodeURIComponent(q)}&type=video&page=${i}`, { signal: abortController.signal });
-                const data = await res.json();
-                
-                if(!data.length) break;
-
-                data.forEach(v => pushRaw({
-                    src: 'VIDEO', title: v.title, text: `Channel: ${v.author}`, link: `https://yewtu.be/watch?v=${v.videoId}`, timestamp: v.published * 1000, color: '#ff0000'
-                }));
-                await new Promise(r => setTimeout(r, 500));
-            } catch(e) { break; }
-        }
-        updateVec('vid', 'DONE');
+    async function apiHackerNews(q) {
+        try {
+            const res = await fetch(`https://hn.algolia.com/api/v1/search?query=${encodeURIComponent(q)}&tags=story&hitsPerPage=20`, { signal: abortController.signal });
+            const data = await res.json();
+            data.hits.forEach(h => pushRaw({
+                src: 'HACKERNEWS', title: h.title, text: `Points: ${h.points} | Comments: ${h.num_comments}`, link: h.url || `https://news.ycombinator.com/item?id=${h.objectID}`, timestamp: h.created_at_i * 1000, color: SOURCES.HACKERNEWS.color
+            }));
+            updateStatus('HACKERNEWS', 'OK');
+        } catch(e) { updateStatus('HACKERNEWS', 'ERR'); }
     }
 
-    // 4. DDG TWITTER (Single Pass - Hard to paginate without real API)
+    async function apiWikipedia(q) {
+        try {
+            const url = `https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(q)}&format=json&origin=*`;
+            const res = await fetch(url, { signal: abortController.signal });
+            const data = await res.json();
+            data.query.search.forEach(w => pushRaw({
+                src: 'WIKIPEDIA', title: w.title, text: w.snippet, link: `https://en.wikipedia.org/wiki/${encodeURIComponent(w.title)}`, timestamp: new Date(w.timestamp).getTime(), color: SOURCES.WIKIPEDIA.color
+            }));
+            updateStatus('WIKIPEDIA', 'OK');
+        } catch(e) { updateStatus('WIKIPEDIA', 'ERR'); }
+    }
+
+    async function apiStackOverflow(q) {
+        try {
+            const url = `https://api.stackexchange.com/2.3/search?order=desc&sort=activity&intitle=${encodeURIComponent(q)}&site=stackoverflow`;
+            const res = await fetch(url, { signal: abortController.signal });
+            const data = await res.json();
+            data.items.forEach(i => pushRaw({
+                src: 'STACKOVFL', title: i.title, text: `Tags: ${i.tags.join(', ')}`, link: i.link, timestamp: i.creation_date * 1000, color: SOURCES.STACKOVFL.color
+            }));
+            updateStatus('STACKOVFL', 'OK');
+        } catch(e) { updateStatus('STACKOVFL', 'ERR'); }
+    }
+
+    async function apiGithub(q) {
+        try {
+            const url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}&sort=stars&order=desc&per_page=10`;
+            const res = await fetch(url, { signal: abortController.signal });
+            const data = await res.json();
+            data.items.forEach(i => pushRaw({
+                src: 'GITHUB', title: i.full_name, text: i.description || "No description", link: i.html_url, timestamp: new Date(i.updated_at).getTime(), color: SOURCES.GITHUB.color
+            }));
+            updateStatus('GITHUB', 'OK');
+        } catch(e) { updateStatus('GITHUB', 'ERR'); }
+    }
+
+    async function apiMastodon(q) {
+        try {
+            // Using mastodon.social as public instance
+            const url = `https://mastodon.social/api/v2/search?q=${encodeURIComponent(q)}&type=statuses&limit=10`;
+            const res = await fetch(useProxy ? PROXY_BASE + encodeURIComponent(url) : url, { signal: abortController.signal });
+            const data = await res.json();
+            data.statuses.forEach(s => pushRaw({
+                src: 'MASTODON', title: `@${s.account.acct}`, text: s.content, link: s.url, timestamp: new Date(s.created_at).getTime(), color: SOURCES.MASTODON.color
+            }));
+            updateStatus('MASTODON', 'OK');
+        } catch(e) { updateStatus('MASTODON', 'ERR'); }
+    }
+
+    async function apiArxiv(q) {
+        try {
+            const url = `http://export.arxiv.org/api/query?search_query=all:${encodeURIComponent(q)}&start=0&max_results=10`;
+            const res = await fetch(useProxy ? PROXY_BASE + encodeURIComponent(url) : url, { signal: abortController.signal });
+            const text = await res.text();
+            const xml = new DOMParser().parseFromString(text, "text/xml");
+            const entries = xml.querySelectorAll("entry");
+            entries.forEach(e => {
+                pushRaw({
+                    src: 'ARXIV',
+                    title: e.querySelector("title").textContent,
+                    text: e.querySelector("summary").textContent.substring(0,200),
+                    link: e.querySelector("id").textContent,
+                    timestamp: new Date(e.querySelector("published").textContent).getTime(),
+                    color: SOURCES.ARXIV.color
+                });
+            });
+            updateStatus('ARXIV', 'OK');
+        } catch(e) { updateStatus('ARXIV', 'ERR'); }
+    }
+
     async function scrapeDDG(q) {
         try {
-            updateVec('twt', 'SCAN');
-            const target = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q + " site:twitter.com")}`;
-            const res = await fetch(getProxyUrl(target), { signal: abortController.signal });
+            const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`;
+            const res = await fetch(useProxy ? PROXY_BASE + encodeURIComponent(url) : url, { signal: abortController.signal });
             const text = await res.text();
             const doc = new DOMParser().parseFromString(text, "text/html");
-            let count = 0;
+            let c = 0;
             doc.querySelectorAll('.result').forEach(n => {
-                const link = n.querySelector('.result__a')?.href;
-                if(link && (link.includes('twitter.com') || link.includes('x.com'))) {
+                const a = n.querySelector('.result__a');
+                if(a && c < 10) {
                     pushRaw({
-                        src: 'TWITTER', title: n.querySelector('.result__a').innerText, text: n.querySelector('.result__snippet').innerText, link: link, timestamp: Date.now(), color: '#fff'
+                        src: 'DUCKDUCKGO', title: a.innerText, text: n.querySelector('.result__snippet').innerText, link: a.href, timestamp: Date.now(), color: SOURCES.DUCKDUCKGO.color
                     });
-                    count++;
+                    c++;
                 }
             });
-            updateVec('twt', `OK (${count})`);
-        } catch(e) { updateVec('twt', 'ERR'); }
-    }
-
-    // 5. GOOGLE NEWS RSS (Single Pass - RSS doesn't paginate well)
-    async function scrapeGoogleNews(q) {
-        try {
-            const rss = `https://news.google.com/rss/search?q=${encodeURIComponent(q)}&hl=en-US&gl=US&ceid=US:en`;
-            const api = `https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(rss)}`;
-            const res = await fetch(api, { signal: abortController.signal });
-            const data = await res.json();
-            if(data.items) data.items.forEach(i => pushRaw({
-                src: 'NEWS', title: i.title, text: i.description, link: i.link, timestamp: new Date(i.pubDate).getTime(), color: '#4285f4'
-            }));
-        } catch(e) { }
+            updateStatus('DUCKDUCKGO', 'OK');
+        } catch(e) { updateStatus('DUCKDUCKGO', 'ERR'); }
     }
 
     // --- CORE LOGIC ---
+
     function pushRaw(obj) { 
         state.rawResults.push(obj); 
-        // Real-time counter update
         document.getElementById('count-total').innerText = state.rawResults.length;
     }
 
@@ -339,13 +447,13 @@
             const content = (item.title + " " + item.text).toLowerCase();
             let hits = 0;
             terms.forEach(t => { if(content.includes(t)) hits++; });
-            const score = (hits / terms.length) * 100;
+            const score = terms.length > 0 ? (hits / terms.length) * 100 : 0;
             return { ...item, score: score, hits: hits };
         });
 
         state.processedResults = scored.filter(item => {
             if(state.strict) return item.score === 100;
-            return item.hits > 0;
+            return item.hits > 0 || terms.length === 0;
         });
 
         // Sort: Score > Date
@@ -366,18 +474,17 @@
         const feed = document.getElementById('mainFeed');
         feed.innerHTML = "";
         
-        // Limit render to 500 to prevent browser lag if we found thousands
-        const displaySet = state.processedResults.slice(0, 500);
-
-        displaySet.forEach(item => {
+        state.processedResults.slice(0, 500).forEach(item => {
             const terms = state.query.split(' ');
             let hTitle = item.title;
-            let hText = cleanHTML(item.text); 
+            let hText = item.text || ""; 
             
             terms.forEach(t => {
-                const reg = new RegExp(`(${t})`, 'gi');
-                hTitle = hTitle.replace(reg, '<mark>$1</mark>');
-                hText = hText.replace(reg, '<mark>$1</mark>');
+                if(t.length > 2) {
+                    const reg = new RegExp(`(${t})`, 'gi');
+                    hTitle = hTitle.replace(reg, '<mark>$1</mark>');
+                    hText = hText.replace(reg, '<mark>$1</mark>');
+                }
             });
 
             const card = document.createElement('div');
@@ -392,26 +499,18 @@
                 </div>
                 <div class="card-content">
                     <div class="res-meta">
-                        <span class="res-badge" style="background:${item.color}; color:${item.src.includes('TWITTER')?'#000':'#fff'}">${item.src}</span>
+                        <span class="res-badge" style="background:${item.color}; color:#fff; text-shadow:0 1px 2px #000;">${item.src}</span>
                         <span>${new Date(item.timestamp).toLocaleDateString()}</span>
                     </div>
                     <a href="${item.link}" target="_blank" class="res-title">${hTitle}</a>
                     <div class="res-snip">${hText}</div>
                     <div class="res-foot">
-                        <span>${new URL(item.link).hostname}</span>
+                        <span>SOURCE_ID: ${item.src}</span>
                     </div>
                 </div>
             `;
             feed.appendChild(card);
         });
-        
-        if(state.processedResults.length > 500) {
-            log(`DISPLAYING FIRST 500 OF ${state.processedResults.length} NODES`);
-        }
-    }
-
-    function updateVec(id, val) {
-        document.getElementById(`stat-${id}`).innerText = val;
     }
 
     function updateCounts(total, perf, part) {
@@ -420,16 +519,15 @@
         document.getElementById('count-part').innerText = part;
     }
 
-    function resetStats() {
-        updateCounts(0,0,0);
-        ['red','hn','twt','vid'].forEach(id => updateVec(id, 'IDLE'));
-    }
-
     function cleanHTML(str) {
+        if(!str) return "";
         const d = document.createElement('div');
         d.innerHTML = str;
-        return (d.textContent || d.innerText || "").substring(0, 300) + "...";
+        return (d.textContent || d.innerText || "").substring(0, 250) + "...";
     }
+
+    // Init
+    initGrid();
 </script>
 </body>
 </html>
